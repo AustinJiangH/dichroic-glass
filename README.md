@@ -1,59 +1,47 @@
 # Dichroic Glass
 
-Real-time dichroic glass installation simulator inspired by [Chris Wood's wall pieces](https://www.thisiscolossal.com/2014/09/geometric-dichroic-glass-installations-by-chris-wood/) — vanilla Three.js, no React.
+**A meditative little browser playground where you build sculptures from rainbow-tinted glass and watch them throw colored shadows across the floor.**
 
-**[Live demo →](https://austinjiangh.github.io/dichroic-glass/)**
+> [Open the demo →](https://austinjiangh.github.io/dichroic-glass/)
 
-Each panel is rendered as physical glass (`MeshPhysicalMaterial` with transmission, dispersion, iridescence). The colored shadows on the floor come from per-light projective cookie textures — every frame, each spotlight renders the panels' transmission colors from its own POV into a render target, and Three.js multiplies the light's contribution by that cookie:
+Inspired by Chris Wood's quiet, gallery-scale installations of dichroic glass, this is a Three.js sandbox where light passes through panes of colored glass and paints the world behind them. Pick a layout. Drag the camera. Tweak the lights. Hit Play and let the camera drift overhead while the lights breathe — the floor turns into a slow, shifting carpet of hue.
 
-```
-floor_pixel_light_contribution = lightColor × panelTransmissionColor
-```
+## What to play with
 
-That's a physical filter — cyan glass under red light yields a black contribution, green and blue still pass — so shadows naturally take the panel's hue.
+When the demo loads, the controls are in two places:
 
-## Layouts
+- **Bottom-left** — your two big buttons. Pick a **layout** (Stone Henge, InterWeave, or Turbo) and hit **Play** to start the cinematic auto-orbit.
+- **Top-right** — the fiddly knobs. Open *Scene*, *Colored Lights*, *Glass Panels*, *Shadow Tints*, and *Shadows* to dial in your own mood. Save your favorite settings as JSON from the *Settings* folder and reload them later.
 
-Switch via the bottom-left dropdown:
+Try this:
+1. Switch to **Turbo** and press Play. Watch the radial blades catch light from three different angles.
+2. Open **Colored Lights** and drag a light's height down to 1 — see how the shadow stretches across the floor.
+3. Crank **shadow saturation** in the Scene folder to push the colors from "pastel watercolor" toward "stained glass cathedral".
+4. Drop **transmission** on the Glass Panels to make the glass look more solid and the reflections pop.
 
-- **Stone Henge** — 3 concentric rings of upright panels facing center; 3 mixed-tint overhead lights.
-- **InterWeave** — 15×15 grid with alternating 90° panel rotation (basket weave); 4 lights at 45°-crossed positions.
-- **Turbo** — 5 concentric radial-blade layers with alternating ±15° tilt around the radial axis; 3 asymmetric lights.
+Drag with your mouse to look around. Scroll to zoom. Hit Pause to take over.
 
-Hit **Play** to auto-orbit the camera (azimuth rotation + smooth 30°→90° elevation climb) with light positions/intensities wobbling within range.
-
-## Run locally
+## Run it locally
 
 ```bash
 pnpm install
 pnpm dev
 ```
 
-Open http://localhost:5173/.
+Then open http://localhost:5173/.
 
-## Architecture
+You'll need [Node.js](https://nodejs.org/) and [pnpm](https://pnpm.io/) installed.
 
-- `src/buildInstallation.js` — scene construction (lights, panels, floor, shadow tints).
-- `src/spotlightCookie.js` — per-light cookie texture pipeline. Each frame renders the panels colored by their transmission color from the light's POV.
-- `src/shaders.js` — dichroic glass and shadow-tint custom shaders.
-- `demo/data.js` — layout definitions (stonehenge / interweave / turbo) with palette and light positions.
-- `demo/main.js` — renderer setup, GUI bindings, animation loop.
+## Acknowledgements
 
-The cookie approach trades render-target memory (3× 2048² MSAA textures per frame) for physical correctness — each light is filtered independently by whatever panels sit in its path, so a panel that absorbs red from one light doesn't also absorb red from another light it doesn't block.
+- **[Chris Wood](https://www.chriswoodglass.co.uk/)** — for the original installations that inspired this entire thing. Go look at his work, it's better than anything on a screen.
+- **[Colossal](https://www.thisiscolossal.com/2014/09/geometric-dichroic-glass-installations-by-chris-wood/)** — for first pointing me to it.
+- **[Three.js](https://threejs.org/)** — the engine doing all the real work.
+- **[lil-gui](https://lil-gui.georgealways.com/)** — the controls panel.
+- The Three.js forum and community blogs whose posts helped me figure out cookie projections, transmission limitations, and how to actually fake all this in real time.
 
-## Knobs worth playing with
-
-In the GUI's Scene folder:
-- `shadow saturation` — pulls cookie colors away from white (stronger shadow hue).
-- `ambient` — global fill light.
-- `exposure` — tone mapping.
-
-In Glass Panels:
-- `transmission` — see-through factor.
-- `opacity` — alpha-blend for layered panels through each other.
-- `dispersion`, `iridescence`, `ior` — PBR optical properties.
-- `panel depth (geometry)` — live geometric thickness.
+Built with Claude Code as a thinking partner.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+[MIT](LICENSE). Use it, fork it, remix it. Send me a screenshot if you make something beautiful.
