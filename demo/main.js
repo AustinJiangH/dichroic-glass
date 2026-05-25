@@ -36,25 +36,8 @@ container.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
 const pmrem = new THREE.PMREMGenerator(renderer);
-const roomScene = new RoomEnvironment();
-const pmremResult = pmrem.fromScene(roomScene, 0.04);
-scene.environment = pmremResult.texture;
-scene.environmentIntensity = 0.5;
-
-// DIAGNOSTIC: inspect what PMREM produced
-console.log('[pmrem-debug] result:', pmremResult);
-console.log('[pmrem-debug] texture:', scene.environment && {
-  uuid: scene.environment.uuid,
-  width: scene.environment.image?.width,
-  height: scene.environment.image?.height,
-  format: scene.environment.format,
-  type: scene.environment.type,
-  mapping: scene.environment.mapping,
-  isCubeTexture: scene.environment.isCubeTexture,
-  isDataTexture: scene.environment.isDataTexture,
-  isTexture: scene.environment.isTexture
-});
-console.log('[pmrem-debug] renderer caps maxCubemap:', renderer.capabilities.maxCubemapSize);
+scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+scene.environmentIntensity = 0;
 
 const camera = new THREE.PerspectiveCamera(
   45,
