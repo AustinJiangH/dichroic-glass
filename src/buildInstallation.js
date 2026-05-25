@@ -52,33 +52,12 @@ export function createGlassMaterial(panel) {
   });
 }
 
-export function createPanelShadowTint(panel, lightPos, options = {}) {
+export function createPanelShadowTint(panel, light, options = {}) {
   const { intensity = 0.55, softness = 0.45, falloff = 2.0 } = options;
 
-  const panelBase = new THREE.Vector3(panel.position.x, 0, panel.position.z);
-  const panelCenter = new THREE.Vector3(panel.position.x, panel.position.y, panel.position.z);
-
-  const dir = new THREE.Vector3().subVectors(panelCenter, lightPos);
-  if (Math.abs(dir.y) < 1e-4) return null;
-  const t = -lightPos.y / dir.y;
-  if (t <= 0) return null;
-  const shadowTip = new THREE.Vector3(
-    lightPos.x + dir.x * t,
-    0,
-    lightPos.z + dir.z * t
-  );
-
-  const lengthVec = new THREE.Vector3().subVectors(shadowTip, panelBase);
-  lengthVec.y = 0;
-  const shadowLength = Math.max(lengthVec.length(), 0.001);
-  const angle = Math.atan2(lengthVec.z, lengthVec.x);
-
-  const midpoint = new THREE.Vector3().lerpVectors(panelBase, shadowTip, 0.5);
-  midpoint.y = 0.005;
-
-  const widthSpread = panel.width * (1 + shadowLength / panelCenter.distanceTo(lightPos) * 0.5);
-
-  const geo = new THREE.PlaneGeometry(shadowLength, widthSpread);
+  // Unit-size plane; updateShadowTint() positions and scales it each frame
+  // based on the current light position so the tint tracks light movement.
+  const geo = new THREE.PlaneGeometry(1, 1);
   const uniforms = {
     uTransmissionColor: { value: new THREE.Color(panel.colors.transmission) },
     uEdgeShiftColor:    { value: new THREE.Color(panel.colors.edgeShift) },
@@ -97,11 +76,62 @@ export function createPanelShadowTint(panel, lightPos, options = {}) {
   });
 
   const mesh = new THREE.Mesh(geo, mat);
-  mesh.position.copy(midpoint);
-  mesh.rotation.x = -Math.PI / 2;
-  mesh.rotation.z = angle;
   mesh.renderOrder = 1;
+  mesh.userData = { panel, light };
+  updateShadowTint(mesh);
   return mesh;
+}
+
+const _tintPanelBase = new THREE.Vector3();
+const _tintPanelCenter = new THREE.Vector3();
+const _tintDir = new THREE.Vector3();
+const _tintShadowTip = new THREE.Vector3();
+const _tintLengthVec = new THREE.Vector3();
+const _tintMidpoint = new THREE.Vector3();
+
+export function updateShadowTint(mesh) {
+  const { panel, light } = mesh.userData;
+  const lightPos = light.position;
+
+  _tintPanelBase.set(panel.position.x, 0, panel.position.z);
+  _tintPanelCenter.set(panel.position.x, panel.position.y, panel.position.z);
+  _tintDir.subVectors(_tintPanelCenter, lightPos);
+
+  if (Math.abs(_tintDir.y) < 1e-4 || lightPos.y <= 0) {
+    mesh.visible = false;
+    return;
+  }
+  const t = -lightPos.y / _tintDir.y;
+  if (t <= 0) {
+    mesh.visible = false;
+    return;
+  }
+
+  mesh.visible = true;
+  _tintShadowTip.set(
+    lightPos.x + _tintDir.x * t,
+    0,
+    lightPos.z + _tintDir.z * t
+  );
+
+  _tintLengthVec.subVectors(_tintShadowTip, _tintPanelBase);
+  _tintLengthVec.y = 0;
+  const shadowLength = Math.max(_tintLengthVec.length(), 0.001);
+  const angle = Math.atan2(_tintLengthVec.z, _tintLengthVec.x);
+
+  _tintMidpoint.lerpVectors(_tintPanelBase, _tintShadowTip, 0.5);
+  _tintMidpoint.y = 0.005;
+
+  const lightDist = _tintPanelCenter.distanceTo(lightPos);
+  const widthSpread = panel.width * (1 + shadowLength / lightDist * 0.5);
+
+  mesh.position.copy(_tintMidpoint);
+  mesh.rotation.set(-Math.PI / 2, 0, angle);
+  mesh.scale.set(shadowLength, widthSpread, 1);
+}
+
+export function updateShadowTints(meshes) {
+  meshes.forEach(updateShadowTint);
 }
 
 export function buildPanel(panel) {
@@ -202,9 +232,8 @@ export function buildInstallation(scene, panels, options = {}) {
     installation.add(result.group);
 
     result.tints = [];
-    coloredLights.forEach((cfg) => {
-      const lightPos = new THREE.Vector3(cfg.position[0], cfg.position[1], cfg.position[2]);
-      const tint = createPanelShadowTint(panel, lightPos);
+    directionalLights.forEach((light) => {
+      const tint = createPanelShadowTint(panel, light);
       if (tint) {
         installation.add(tint);
         result.tints.push(tint);

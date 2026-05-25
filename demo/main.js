@@ -8,7 +8,8 @@ import {
   DEFAULT_AMBIENT_INTENSITY,
   DEFAULT_SHADOW_SATURATION,
   updateSpotlightCookies,
-  updateCookieSaturation
+  updateCookieSaturation,
+  updateShadowTints
 } from '../src/index.js';
 import { installationData } from './data.js';
 
@@ -220,6 +221,9 @@ function animate() {
 
   if (cookieScenes && cookieTargets) {
     updateSpotlightCookies(renderer, lights.directional, cookieScenes, cookieTargets);
+  }
+  if (shadowTints.length) {
+    updateShadowTints(shadowTints);
   }
 
   renderer.render(scene, camera);

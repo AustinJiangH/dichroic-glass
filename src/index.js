@@ -3,6 +3,8 @@ export {
   buildPanel,
   createGlassMaterial,
   createPanelShadowTint,
+  updateShadowTint,
+  updateShadowTints,
   DEFAULT_GLASS,
   DEFAULT_AMBIENT_INTENSITY
 } from './buildInstallation.js';
