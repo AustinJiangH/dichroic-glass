@@ -85,15 +85,12 @@ setTimeout(() => {
   console.log(`[dichroic-debug] total programs:`, programs.length);
   programs.forEach((p, i) => {
     const k = p.cacheKey || '';
-    console.log(`[dichroic-debug] program ${i} cacheKey head:`, k.slice(0, 60));
+    // Print full cacheKey for any physical shader without PHYSICAL define (= MeshStandardMaterial)
+    const isStandard = k.startsWith('physical,STANDARD,') && !k.includes('PHYSICAL,,');
+    if (isStandard) {
+      console.log(`[dichroic-debug] STANDARD program ${i} FULL cacheKey:`, k);
+    }
   });
-  // The floor MeshStandardMaterial — search by program list including spotLightMap counts
-  const floorProg = programs.find(p => p.cacheKey && p.cacheKey.startsWith('standard,'));
-  if (floorProg) {
-    console.log(`[dichroic-debug] FLOOR program cacheKey:`, floorProg.cacheKey);
-  } else {
-    console.log(`[dichroic-debug] No "standard," program found`);
-  }
   // Cookie pixel sample
   cookieTargets.forEach((tgt, i) => {
     const buf = new Uint8Array(4);
