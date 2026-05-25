@@ -79,25 +79,32 @@ console.log(`[dichroic-debug] floor isMeshStandardMaterial=${floor && floor.mate
 console.log(`[dichroic-debug] floor envMapIntensity=${floor && floor.material && floor.material.envMapIntensity}`);
 console.log(`[dichroic-debug] scene.environmentIntensity=${scene.environmentIntensity}`);
 
-// After first render, inspect what got compiled
+// After first render, inspect ALL programs to find the floor's
 setTimeout(() => {
-  const physical = renderer.info.programs?.find(p => p.cacheKey && p.cacheKey.includes('physical'));
-  if (physical) {
-    console.log(`[dichroic-debug] floor FULL cacheKey:`, physical.cacheKey);
-    console.log(`[dichroic-debug] floor program uniforms keys:`, Object.keys(physical.uniforms || {}).filter(k => k.toLowerCase().includes('spot')));
-    console.log(`[dichroic-debug] cookie texture content check:`);
-    cookieTargets.forEach((tgt, i) => {
-      const buf = new Uint8Array(4);
-      try {
-        renderer.readRenderTargetPixels(tgt, 1024, 1024, 1, 1, buf);
-        console.log(`  cookie ${i} center pixel:`, [...buf]);
-      } catch (e) {
-        console.log(`  cookie ${i} read failed:`, e.message);
-      }
-    });
+  const programs = renderer.info.programs || [];
+  console.log(`[dichroic-debug] total programs:`, programs.length);
+  programs.forEach((p, i) => {
+    const k = p.cacheKey || '';
+    console.log(`[dichroic-debug] program ${i} cacheKey head:`, k.slice(0, 60));
+  });
+  // The floor MeshStandardMaterial — search by program list including spotLightMap counts
+  const floorProg = programs.find(p => p.cacheKey && p.cacheKey.startsWith('standard,'));
+  if (floorProg) {
+    console.log(`[dichroic-debug] FLOOR program cacheKey:`, floorProg.cacheKey);
+  } else {
+    console.log(`[dichroic-debug] No "standard," program found`);
   }
-  console.log(`[dichroic-debug] total programs:`, renderer.info.programs?.length);
-}, 1000);
+  // Cookie pixel sample
+  cookieTargets.forEach((tgt, i) => {
+    const buf = new Uint8Array(4);
+    try {
+      renderer.readRenderTargetPixels(tgt, 1024, 1024, 1, 1, buf);
+      console.log(`[dichroic-debug] cookie ${i} center pixel: r=${buf[0]} g=${buf[1]} b=${buf[2]} a=${buf[3]}`);
+    } catch (e) {
+      console.log(`[dichroic-debug] cookie ${i} read failed:`, e.message);
+    }
+  });
+}, 1500);
 
 const gui = new GUI({ title: 'Dichroic Controls' });
 
