@@ -71,23 +71,24 @@ if (cookieScenes && cookieTargets) {
 }
 renderer.compile(scene, camera);
 
-// DEBUG: log spotlight + cookie state so we can verify on the deployed site
-console.log('[dichroic-debug] lights:', lights.directional.map((l) => ({
-  type: l.constructor.name,
-  isSpotLight: l.isSpotLight,
-  hasMap: !!l.map,
-  mapUuid: l.map && l.map.uuid,
-  mapColorSpace: l.map && l.map.colorSpace,
-  intensity: l.intensity,
-  inScene: !!l.parent
-})));
-console.log('[dichroic-debug] cookieTargets:', cookieTargets && cookieTargets.length, 'cookieScenes:', cookieScenes && cookieScenes.length);
-console.log('[dichroic-debug] floor material type:', floor && floor.material && floor.material.constructor.name);
-console.log('[dichroic-debug] renderer caps:', {
-  isWebGL2: renderer.capabilities.isWebGL2,
-  maxTextures: renderer.capabilities.maxTextures,
-  outputColorSpace: renderer.outputColorSpace
+// DEBUG: flat string logs so they're visible without expanding
+lights.directional.forEach((l, i) => {
+  console.log(`[dichroic-debug] light ${i}: isSpotLight=${l.isSpotLight} hasMap=${!!l.map} mapColorSpace="${l.map && l.map.colorSpace}" inScene=${!!l.parent} intensity=${l.intensity} angle=${l.angle.toFixed(3)}`);
 });
+console.log(`[dichroic-debug] floor isMeshStandardMaterial=${floor && floor.material && floor.material.isMeshStandardMaterial} receiveShadow=${floor && floor.receiveShadow}`);
+console.log(`[dichroic-debug] floor envMapIntensity=${floor && floor.material && floor.material.envMapIntensity}`);
+console.log(`[dichroic-debug] scene.environmentIntensity=${scene.environmentIntensity}`);
+
+// After first render, inspect what got compiled
+setTimeout(() => {
+  const program = renderer.info.programs?.find(p => p.cacheKey && p.cacheKey.includes('STANDARD'));
+  console.log(`[dichroic-debug] floor program found:`, !!program);
+  if (program && program.cacheKey) {
+    const hasSpotLightMap = program.cacheKey.includes('numSpotLightMaps:3') || program.cacheKey.includes('3,3,3');
+    console.log(`[dichroic-debug] floor cacheKey snippet:`, program.cacheKey.slice(0, 200));
+  }
+  console.log(`[dichroic-debug] total programs:`, renderer.info.programs?.length);
+}, 500);
 
 const gui = new GUI({ title: 'Dichroic Controls' });
 
