@@ -83,12 +83,28 @@ console.log(`[dichroic-debug] scene.environmentIntensity=${scene.environmentInte
 setTimeout(() => {
   const programs = renderer.info.programs || [];
   console.log(`[dichroic-debug] total programs:`, programs.length);
+
+  // Print floor program's compiled GLSL (search via the WebGL program internals)
+  const gl = renderer.getContext();
   programs.forEach((p, i) => {
     const k = p.cacheKey || '';
-    // Print full cacheKey for any physical shader without PHYSICAL define (= MeshStandardMaterial)
-    const isStandard = k.startsWith('physical,STANDARD,') && !k.includes('PHYSICAL,,');
-    if (isStandard) {
-      console.log(`[dichroic-debug] STANDARD program ${i} FULL cacheKey:`, k);
+    const isFloorCandidate = k.startsWith('physical,STANDARD,,highp,srgb,') && !k.includes('PHYSICAL,,');
+    if (isFloorCandidate && p.program) {
+      try {
+        const shaders = gl.getAttachedShaders(p.program);
+        shaders.forEach((sh, j) => {
+          const type = gl.getShaderParameter(sh, gl.SHADER_TYPE) === gl.VERTEX_SHADER ? 'VERT' : 'FRAG';
+          const src = gl.getShaderSource(sh);
+          // Print summary: define lines + spot light handling section
+          const defines = (src.match(/^#define [A-Z_0-9]+( .*)?$/gm) || []).slice(0, 30);
+          const hasSpotLightMap = src.includes('spotLightMap');
+          const hasNumSpotLightMaps3 = src.includes('NUM_SPOT_LIGHT_MAPS 3') || src.includes('NUM_SPOT_LIGHT_MAPS 4');
+          console.log(`[dichroic-debug] FLOOR ${type} hasSpotLightMap=${hasSpotLightMap} numSpotMaps≥3=${hasNumSpotLightMaps3}`);
+          console.log(`[dichroic-debug] FLOOR ${type} defines:`, defines.join('\n'));
+        });
+      } catch (e) {
+        console.log('floor shader inspect failed:', e.message);
+      }
     }
   });
   // Cookie pixel sample
