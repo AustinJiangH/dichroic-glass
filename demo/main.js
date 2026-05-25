@@ -2,8 +2,25 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import GUI from 'lil-gui';
-import { buildInstallation, DEFAULT_GLASS } from '../src/index.js';
+import {
+  buildInstallation,
+  DEFAULT_GLASS,
+  DEFAULT_AMBIENT_INTENSITY,
+  DEFAULT_SHADOW_SATURATION,
+  DEFAULT_PANEL_DEPTH,
+  updateSpotlightCookies,
+  updateCookieSaturation,
+  updateShadowTints
+} from '../src/index.js';
 import { installationData } from './data.js';
+
+// Top-level demo config — tweak here to change behavior.
+const config = {
+  ambientIntensity: 0.12,
+  shadowSaturation: 3.5,
+  shadowTintIntensity: 0.17,
+  panelDepth: DEFAULT_PANEL_DEPTH
+};
 
 const container = document.getElementById('app');
 
@@ -34,7 +51,13 @@ const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.target.set(0, 0.4, 0);
 
-const { lights, floor, panels, shadowTints } = buildInstallation(scene, installationData);
+const { lights, floor, panels, shadowTints, cookieScenes, cookieTargets, cookieMaterials, cookieMeshes } =
+  buildInstallation(scene, installationData, {
+    ambientIntensity: config.ambientIntensity,
+    shadowSaturation: config.shadowSaturation,
+    panelDepth: config.panelDepth
+  });
+shadowTints.forEach((m) => { m.userData.baseIntensity = config.shadowTintIntensity; });
 
 const gui = new GUI({ title: 'Dichroic Controls' });
 
@@ -44,6 +67,9 @@ sceneFolder.add(scene, 'environmentIntensity', 0, 2, 0.01).name('env IBL');
 if (lights.ambient) {
   sceneFolder.add(lights.ambient, 'intensity', 0, 2, 0.01).name('ambient');
 }
+sceneFolder.add(config, 'shadowSaturation', 0, 5, 0.05)
+  .name('shadow saturation')
+  .onChange((v) => updateCookieSaturation(cookieMaterials, v));
 if (floor) {
   sceneFolder.add(floor.material, 'envMapIntensity', 0, 2, 0.01).name('floor IBL');
   sceneFolder.addColor({ color: floor.material.color.getHex() }, 'color')
@@ -81,9 +107,22 @@ glassFolder.add(glassParams, 'attenuationDistance', 0.05, 5, 0.05).onChange((v) 
 glassFolder.add(glassParams, 'clearcoat', 0, 1, 0.01).onChange((v) => applyToAll('clearcoat', v));
 glassFolder.add(glassParams, 'roughness', 0, 1, 0.01).onChange((v) => applyToAll('roughness', v));
 
+const geoParams = { panelDepth: config.panelDepth };
+function rebuildGeometry(mesh, newDepth) {
+  const { width, height } = mesh.geometry.parameters;
+  mesh.geometry.dispose();
+  mesh.geometry = new THREE.BoxGeometry(width, height, newDepth);
+}
+glassFolder.add(geoParams, 'panelDepth', 0.01, 0.5, 0.01)
+  .name('panel depth (geometry)')
+  .onChange((v) => {
+    panels.forEach(({ glassMesh }) => rebuildGeometry(glassMesh, v));
+    cookieMeshes.forEach((m) => rebuildGeometry(m, v));
+  });
+
 const tintFolder = gui.addFolder('Shadow Tints (per-panel color)');
 const tintParams = {
-  intensity: 0.55,
+  intensity: config.shadowTintIntensity,
   softness: 0.45,
   falloff: 2.0
 };
@@ -91,7 +130,8 @@ const setTintUniform = (name, value) => {
   shadowTints.forEach((m) => { m.material.uniforms[name].value = value; });
 };
 tintFolder.add(tintParams, 'intensity', 0, 2, 0.01)
-  .onChange((v) => setTintUniform('uIntensity', v));
+  .name('intensity (× light)')
+  .onChange((v) => { shadowTints.forEach((m) => { m.userData.baseIntensity = v; }); });
 tintFolder.add(tintParams, 'softness', 0, 1, 0.01)
   .onChange((v) => setTintUniform('uSoftness', v));
 tintFolder.add(tintParams, 'falloff', 0.2, 4, 0.05)
@@ -196,6 +236,14 @@ window.addEventListener('resize', () => {
 function animate() {
   requestAnimationFrame(animate);
   controls.update();
+
+  if (cookieScenes && cookieTargets) {
+    updateSpotlightCookies(renderer, lights.directional, cookieScenes, cookieTargets);
+  }
+  if (shadowTints.length) {
+    updateShadowTints(shadowTints);
+  }
+
   renderer.render(scene, camera);
 }
 

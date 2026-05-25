@@ -1,24 +1,35 @@
 import * as THREE from 'three';
 import { shadowTintVertexShader, shadowTintFragmentShader } from './shaders.js';
+import {
+  createCookieScene,
+  createCookieTargets,
+  DEFAULT_SHADOW_SATURATION
+} from './spotlightCookie.js';
 
+export const DEFAULT_AMBIENT_INTENSITY = 0.2;
+
+// Each light's color must have all three channels non-zero, otherwise the
+// per-panel transmission multiply can only attenuate one channel (no hue
+// shift). Saturated-but-not-pure tints give each light room to be filtered
+// into a different hue by every panel.
 const DEFAULT_COLORED_LIGHTS = [
-  { position: [  3.8, 5.4,   5.9 ], color: 0xff0000, intensity: 4.65, penumbra: 8.5, bias: -0.0001, normalBias: 0.02 },
-  { position: [ -6.5, 7.4,  11.26], color: 0x00ff00, intensity: 5.5,  penumbra: 8.0, bias: -0.0001, normalBias: 0.02 },
-  { position: [ -6.5, 8.8, -11.7 ], color: 0x0000ff, intensity: 4.95, penumbra: 8.0, bias: -0.0001, normalBias: 0.02 }
+  { position: [  3.8, 5.4,   5.9 ], color: 0xffbfbf, intensity: 1.5, penumbra: 8.5, bias: -0.0001, normalBias: 0.02 },
+  { position: [ -6.5, 7.4,  11.26], color: 0xbfffbf, intensity: 1.5, penumbra: 8.0, bias: -0.0001, normalBias: 0.02 },
+  { position: [ -6.5, 5.0, -11.7 ], color: 0xbfbfff, intensity: 1.5, penumbra: 8.0, bias: -0.0001, normalBias: 0.02 }
 ];
 
-const GEOMETRY_THICKNESS = 0.06;
+export const DEFAULT_PANEL_DEPTH = 0.02;
 
 export const DEFAULT_GLASS = {
-  transmission: 0.95,
-  thickness: 0.2,
-  ior: 1.39,
-  dispersion: 1.17,
-  iridescence: 0.61,
-  iridescenceIOR: 1.49,
-  attenuationDistance: 1.1,
-  clearcoat: 0.67,
-  roughness: 0.61
+  transmission: 0.87,
+  thickness: 0.08,
+  ior: 1.34,
+  dispersion: 2.05,
+  iridescence: 0.49,
+  iridescenceIOR: 1.76,
+  attenuationDistance: 3.2,
+  clearcoat: 0.27,
+  roughness: 0.05
 };
 
 export function createGlassMaterial(panel) {
@@ -37,37 +48,19 @@ export function createGlassMaterial(panel) {
     attenuationDistance: DEFAULT_GLASS.attenuationDistance,
     clearcoat: DEFAULT_GLASS.clearcoat,
     clearcoatRoughness: 0.08,
-    side: THREE.DoubleSide
+    side: THREE.DoubleSide,
+    transparent: true,
+    opacity: 0.65,
+    depthWrite: false
   });
 }
 
-export function createPanelShadowTint(panel, lightPos, options = {}) {
+export function createPanelShadowTint(panel, light, options = {}) {
   const { intensity = 0.55, softness = 0.45, falloff = 2.0 } = options;
 
-  const panelBase = new THREE.Vector3(panel.position.x, 0, panel.position.z);
-  const panelCenter = new THREE.Vector3(panel.position.x, panel.position.y, panel.position.z);
-
-  const dir = new THREE.Vector3().subVectors(panelCenter, lightPos);
-  if (Math.abs(dir.y) < 1e-4) return null;
-  const t = -lightPos.y / dir.y;
-  if (t <= 0) return null;
-  const shadowTip = new THREE.Vector3(
-    lightPos.x + dir.x * t,
-    0,
-    lightPos.z + dir.z * t
-  );
-
-  const lengthVec = new THREE.Vector3().subVectors(shadowTip, panelBase);
-  lengthVec.y = 0;
-  const shadowLength = Math.max(lengthVec.length(), 0.001);
-  const angle = Math.atan2(lengthVec.z, lengthVec.x);
-
-  const midpoint = new THREE.Vector3().lerpVectors(panelBase, shadowTip, 0.5);
-  midpoint.y = 0.005;
-
-  const widthSpread = panel.width * (1 + shadowLength / panelCenter.distanceTo(lightPos) * 0.5);
-
-  const geo = new THREE.PlaneGeometry(shadowLength, widthSpread);
+  // Unit-size plane; updateShadowTint() positions and scales it each frame
+  // based on the current light position so the tint tracks light movement.
+  const geo = new THREE.PlaneGeometry(1, 1);
   const uniforms = {
     uTransmissionColor: { value: new THREE.Color(panel.colors.transmission) },
     uEdgeShiftColor:    { value: new THREE.Color(panel.colors.edgeShift) },
@@ -86,19 +79,75 @@ export function createPanelShadowTint(panel, lightPos, options = {}) {
   });
 
   const mesh = new THREE.Mesh(geo, mat);
-  mesh.position.copy(midpoint);
-  mesh.rotation.x = -Math.PI / 2;
-  mesh.rotation.z = angle;
   mesh.renderOrder = 1;
+  mesh.userData = { panel, light, baseIntensity: intensity };
+  updateShadowTint(mesh);
   return mesh;
 }
 
-export function buildPanel(panel) {
+const _tintPanelBase = new THREE.Vector3();
+const _tintPanelCenter = new THREE.Vector3();
+const _tintDir = new THREE.Vector3();
+const _tintShadowTip = new THREE.Vector3();
+const _tintLengthVec = new THREE.Vector3();
+const _tintMidpoint = new THREE.Vector3();
+
+export function updateShadowTint(mesh) {
+  const { panel, light } = mesh.userData;
+  const lightPos = light.position;
+
+  _tintPanelBase.set(panel.position.x, 0, panel.position.z);
+  _tintPanelCenter.set(panel.position.x, panel.position.y, panel.position.z);
+  _tintDir.subVectors(_tintPanelCenter, lightPos);
+
+  if (Math.abs(_tintDir.y) < 1e-4 || lightPos.y <= 0) {
+    mesh.visible = false;
+    return;
+  }
+  const t = -lightPos.y / _tintDir.y;
+  if (t <= 0) {
+    mesh.visible = false;
+    return;
+  }
+
+  mesh.visible = true;
+  _tintShadowTip.set(
+    lightPos.x + _tintDir.x * t,
+    0,
+    lightPos.z + _tintDir.z * t
+  );
+
+  _tintLengthVec.subVectors(_tintShadowTip, _tintPanelBase);
+  _tintLengthVec.y = 0;
+  const shadowLength = Math.max(_tintLengthVec.length(), 0.001);
+  const angle = Math.atan2(_tintLengthVec.z, _tintLengthVec.x);
+
+  _tintMidpoint.lerpVectors(_tintPanelBase, _tintShadowTip, 0.5);
+  _tintMidpoint.y = 0.005;
+
+  const lightDist = _tintPanelCenter.distanceTo(lightPos);
+  const widthSpread = panel.width * (1 + shadowLength / lightDist * 0.5);
+
+  mesh.position.copy(_tintMidpoint);
+  mesh.rotation.set(-Math.PI / 2, 0, angle);
+  mesh.scale.set(shadowLength, widthSpread, 1);
+
+  // Scale tint visibility with the light's current intensity so the shadow
+  // tint fades in/out as the user adjusts the light.
+  const base = mesh.userData.baseIntensity ?? 0;
+  mesh.material.uniforms.uIntensity.value = base * light.intensity;
+}
+
+export function updateShadowTints(meshes) {
+  meshes.forEach(updateShadowTint);
+}
+
+export function buildPanel(panel, defaultDepth = DEFAULT_PANEL_DEPTH) {
   const group = new THREE.Group();
   group.name = panel.id;
 
-  const thickness = panel.thickness ?? GEOMETRY_THICKNESS;
-  const glassGeo = new THREE.BoxGeometry(panel.width, panel.height, thickness);
+  const depth = panel.depth ?? defaultDepth;
+  const glassGeo = new THREE.BoxGeometry(panel.width, panel.height, depth);
   const glassMat = createGlassMaterial(panel);
   const glassMesh = new THREE.Mesh(glassGeo, glassMat);
   glassMesh.position.set(panel.position.x, panel.position.y, panel.position.z);
@@ -109,29 +158,32 @@ export function buildPanel(panel) {
     glassMesh.rotation.set(panel.rotation.x, panel.rotation.y, panel.rotation.z);
   }
   glassMesh.name = `${panel.id}_glass`;
-  glassMesh.castShadow = true;
-  glassMesh.receiveShadow = true;
-  glassMesh.customDepthMaterial = new THREE.MeshDepthMaterial({
-    depthPacking: THREE.RGBADepthPacking,
-    side: THREE.DoubleSide
-  });
+  // SpotLight cookies handle the floor's colored shadow projection.
+  // Real shadow casting would zero out the light wherever a panel sits, masking
+  // the cookie's per-panel transmission tint — so we disable it here.
+  glassMesh.castShadow = false;
+  glassMesh.receiveShadow = false;
 
   group.add(glassMesh);
   return { group, glassMesh };
 }
 
-function addColoredLight(parent, cfg, shadowExtent) {
-  const light = new THREE.DirectionalLight(cfg.color, cfg.intensity);
+function addColoredLight(parent, cfg /* shadowExtent unused for SpotLight */) {
+  const light = new THREE.SpotLight(
+    cfg.color,
+    cfg.intensity,
+    0,
+    cfg.angle ?? Math.PI / 3.2,
+    cfg.coneSoftness ?? 0.4,
+    0
+  );
   light.position.set(cfg.position[0], cfg.position[1], cfg.position[2]);
   light.target.position.set(0, 0, 0);
   light.castShadow = true;
   light.shadow.mapSize.set(2048, 2048);
-  light.shadow.camera.left = -shadowExtent;
-  light.shadow.camera.right = shadowExtent;
-  light.shadow.camera.top = shadowExtent;
-  light.shadow.camera.bottom = -shadowExtent;
   light.shadow.camera.near = 0.5;
   light.shadow.camera.far = 40;
+  light.shadow.focus = 1;
   light.shadow.radius = cfg.penumbra ?? 8;
   light.shadow.bias = cfg.bias ?? -0.0005;
   light.shadow.normalBias = cfg.normalBias ?? 0.04;
@@ -144,10 +196,12 @@ export function buildInstallation(scene, panels, options = {}) {
   const {
     addLights = true,
     addFloor = true,
-    floorSize = 30,
+    floorSize = 60,
     floorColor = 0xffffff,
     coloredLights = DEFAULT_COLORED_LIGHTS,
-    ambientIntensity = 0.88,
+    ambientIntensity = DEFAULT_AMBIENT_INTENSITY,
+    shadowSaturation = DEFAULT_SHADOW_SATURATION,
+    panelDepth = DEFAULT_PANEL_DEPTH,
     shadowExtent = 14
   } = options;
 
@@ -183,13 +237,12 @@ export function buildInstallation(scene, panels, options = {}) {
 
   const shadowTints = [];
   const built = panels.map((panel) => {
-    const result = buildPanel(panel);
+    const result = buildPanel(panel, panelDepth);
     installation.add(result.group);
 
     result.tints = [];
-    coloredLights.forEach((cfg) => {
-      const lightPos = new THREE.Vector3(cfg.position[0], cfg.position[1], cfg.position[2]);
-      const tint = createPanelShadowTint(panel, lightPos);
+    directionalLights.forEach((light) => {
+      const tint = createPanelShadowTint(panel, light);
       if (tint) {
         installation.add(tint);
         result.tints.push(tint);
@@ -200,12 +253,27 @@ export function buildInstallation(scene, panels, options = {}) {
     return result;
   });
 
+  const cookieTargets = createCookieTargets(directionalLights.length);
+  // One cookie scene shared by all lights — Three.js multiplies the sampled
+  // map RGB into directLight.color itself, so we don't premultiply by lightColor.
+  const sharedCookie = createCookieScene(panels, shadowSaturation, panelDepth);
+  const cookieScenes = directionalLights.map(() => sharedCookie.scene);
+  const cookieMaterials = sharedCookie.materials;
+  const cookieMeshes = sharedCookie.meshes;
+  directionalLights.forEach((light, i) => {
+    light.map = cookieTargets[i].texture;
+  });
+
   scene.add(installation);
   return {
     installation,
     panels: built,
     lights: { directional: directionalLights, ambient: ambientLight },
     floor: floorMesh,
-    shadowTints
+    shadowTints,
+    cookieScenes,
+    cookieTargets,
+    cookieMaterials,
+    cookieMeshes
   };
 }
