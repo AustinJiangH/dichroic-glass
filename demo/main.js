@@ -37,7 +37,10 @@ container.appendChild(renderer.domElement);
 const scene = new THREE.Scene();
 const pmrem = new THREE.PMREMGenerator(renderer);
 scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-scene.environmentIntensity = 0.63;
+// Default to 0 — env IBL washes out the cookie-projected shadows.
+// Crank via the GUI `env IBL` slider if you want environment-based glass
+// reflections back at the cost of shadow saturation.
+scene.environmentIntensity = 0;
 
 const camera = new THREE.PerspectiveCamera(
   45,
@@ -71,53 +74,6 @@ if (cookieScenes && cookieTargets) {
 }
 renderer.compile(scene, camera);
 
-// DEBUG: flat string logs so they're visible without expanding
-lights.directional.forEach((l, i) => {
-  console.log(`[dichroic-debug] light ${i}: isSpotLight=${l.isSpotLight} hasMap=${!!l.map} mapColorSpace="${l.map && l.map.colorSpace}" inScene=${!!l.parent} intensity=${l.intensity} angle=${l.angle.toFixed(3)}`);
-});
-console.log(`[dichroic-debug] floor isMeshStandardMaterial=${floor && floor.material && floor.material.isMeshStandardMaterial} receiveShadow=${floor && floor.receiveShadow}`);
-console.log(`[dichroic-debug] floor envMapIntensity=${floor && floor.material && floor.material.envMapIntensity}`);
-console.log(`[dichroic-debug] scene.environmentIntensity=${scene.environmentIntensity}`);
-
-// After first render, inspect ALL programs to find the floor's
-setTimeout(() => {
-  const programs = renderer.info.programs || [];
-  console.log(`[dichroic-debug] total programs:`, programs.length);
-
-  // Print floor program's compiled GLSL (search via the WebGL program internals)
-  const gl = renderer.getContext();
-  programs.forEach((p, i) => {
-    const k = p.cacheKey || '';
-    const isFloorCandidate = k.startsWith('physical,STANDARD,,highp,srgb,') && !k.includes('PHYSICAL,,');
-    if (isFloorCandidate && p.program) {
-      try {
-        const shaders = gl.getAttachedShaders(p.program);
-        shaders.forEach((sh, j) => {
-          const type = gl.getShaderParameter(sh, gl.SHADER_TYPE) === gl.VERTEX_SHADER ? 'VERT' : 'FRAG';
-          const src = gl.getShaderSource(sh);
-          // Print summary: define lines + spot light handling section
-          const defines = (src.match(/^#define [A-Z_0-9]+( .*)?$/gm) || []).slice(0, 30);
-          const hasSpotLightMap = src.includes('spotLightMap');
-          const hasNumSpotLightMaps3 = src.includes('NUM_SPOT_LIGHT_MAPS 3') || src.includes('NUM_SPOT_LIGHT_MAPS 4');
-          console.log(`[dichroic-debug] FLOOR ${type} hasSpotLightMap=${hasSpotLightMap} numSpotMaps≥3=${hasNumSpotLightMaps3}`);
-          console.log(`[dichroic-debug] FLOOR ${type} defines:`, defines.join('\n'));
-        });
-      } catch (e) {
-        console.log('floor shader inspect failed:', e.message);
-      }
-    }
-  });
-  // Cookie pixel sample
-  cookieTargets.forEach((tgt, i) => {
-    const buf = new Uint8Array(4);
-    try {
-      renderer.readRenderTargetPixels(tgt, 1024, 1024, 1, 1, buf);
-      console.log(`[dichroic-debug] cookie ${i} center pixel: r=${buf[0]} g=${buf[1]} b=${buf[2]} a=${buf[3]}`);
-    } catch (e) {
-      console.log(`[dichroic-debug] cookie ${i} read failed:`, e.message);
-    }
-  });
-}, 1500);
 
 const gui = new GUI({ title: 'Dichroic Controls' });
 

@@ -8,7 +8,6 @@ export default defineConfig(({ mode }) => ({
     open: true
   },
   build: {
-    target: 'es2020',
-    minify: false
+    target: 'es2020'
   }
 }));
