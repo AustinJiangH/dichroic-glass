@@ -274,8 +274,36 @@ floatStyle.textContent = `
     color: white;
     border-color: rgba(40, 120, 220, 1);
   }
+  .dichroic-star {
+    position: fixed; top: 20px; left: 20px;
+    z-index: 1000;
+    font-family: -apple-system, system-ui, sans-serif;
+    background: rgba(255, 255, 255, 0.85);
+    border: 1px solid rgba(0, 0, 0, 0.15);
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-size: 13px;
+    text-decoration: none;
+    color: #222;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: transform 0.15s;
+  }
+  .dichroic-star:hover { transform: translateY(-1px); background: rgba(255,255,255,0.95); }
 `;
 document.head.appendChild(floatStyle);
+
+const starLink = document.createElement('a');
+starLink.className = 'dichroic-star';
+starLink.href = 'https://github.com/AustinJiangH/dichroic-glass';
+starLink.target = '_blank';
+starLink.rel = 'noopener noreferrer';
+starLink.innerHTML = '<span>★</span><span>Star on GitHub</span>';
+document.body.appendChild(starLink);
 
 const floatContainer = document.createElement('div');
 floatContainer.className = 'dichroic-floating';
