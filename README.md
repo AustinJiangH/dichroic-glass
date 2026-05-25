@@ -4,6 +4,12 @@
 
 > [Open the demo →](https://austinjiangh.github.io/dichroic-glass/)
 
+<p align="center">
+  <img src="docs/shot1.png" height="220" />
+  <img src="docs/shot2.png" height="220" />
+  <img src="docs/shot3.png" height="220" />
+</p>
+
 Inspired by Chris Wood's quiet, gallery-scale installations of dichroic glass, this is a Three.js sandbox where light passes through panes of colored glass and paints the world behind them. Pick a layout. Drag the camera. Tweak the lights. Hit Play and let the camera drift overhead while the lights breathe — the floor turns into a slow, shifting carpet of hue.
 
 ## What to play with
