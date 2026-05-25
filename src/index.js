@@ -6,7 +6,8 @@ export {
   updateShadowTint,
   updateShadowTints,
   DEFAULT_GLASS,
-  DEFAULT_AMBIENT_INTENSITY
+  DEFAULT_AMBIENT_INTENSITY,
+  DEFAULT_PANEL_DEPTH
 } from './buildInstallation.js';
 
 export {

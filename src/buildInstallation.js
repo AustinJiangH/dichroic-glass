@@ -15,21 +15,21 @@ export const DEFAULT_AMBIENT_INTENSITY = 0.2;
 const DEFAULT_COLORED_LIGHTS = [
   { position: [  3.8, 5.4,   5.9 ], color: 0xffbfbf, intensity: 1.5, penumbra: 8.5, bias: -0.0001, normalBias: 0.02 },
   { position: [ -6.5, 7.4,  11.26], color: 0xbfffbf, intensity: 1.5, penumbra: 8.0, bias: -0.0001, normalBias: 0.02 },
-  { position: [ -6.5, 8.8, -11.7 ], color: 0xbfbfff, intensity: 1.5, penumbra: 8.0, bias: -0.0001, normalBias: 0.02 }
+  { position: [ -6.5, 5.0, -11.7 ], color: 0xbfbfff, intensity: 1.5, penumbra: 8.0, bias: -0.0001, normalBias: 0.02 }
 ];
 
-const GEOMETRY_THICKNESS = 0.06;
+export const DEFAULT_PANEL_DEPTH = 0.02;
 
 export const DEFAULT_GLASS = {
-  transmission: 1.0,
+  transmission: 0.87,
   thickness: 0.08,
-  ior: 1.39,
-  dispersion: 1.17,
-  iridescence: 0.4,
-  iridescenceIOR: 1.49,
-  attenuationDistance: 3.0,
-  clearcoat: 0.5,
-  roughness: 0.2
+  ior: 1.34,
+  dispersion: 2.05,
+  iridescence: 0.49,
+  iridescenceIOR: 1.76,
+  attenuationDistance: 3.2,
+  clearcoat: 0.27,
+  roughness: 0.05
 };
 
 export function createGlassMaterial(panel) {
@@ -48,7 +48,10 @@ export function createGlassMaterial(panel) {
     attenuationDistance: DEFAULT_GLASS.attenuationDistance,
     clearcoat: DEFAULT_GLASS.clearcoat,
     clearcoatRoughness: 0.08,
-    side: THREE.DoubleSide
+    side: THREE.DoubleSide,
+    transparent: true,
+    opacity: 0.65,
+    depthWrite: false
   });
 }
 
@@ -77,7 +80,7 @@ export function createPanelShadowTint(panel, light, options = {}) {
 
   const mesh = new THREE.Mesh(geo, mat);
   mesh.renderOrder = 1;
-  mesh.userData = { panel, light };
+  mesh.userData = { panel, light, baseIntensity: intensity };
   updateShadowTint(mesh);
   return mesh;
 }
@@ -128,18 +131,23 @@ export function updateShadowTint(mesh) {
   mesh.position.copy(_tintMidpoint);
   mesh.rotation.set(-Math.PI / 2, 0, angle);
   mesh.scale.set(shadowLength, widthSpread, 1);
+
+  // Scale tint visibility with the light's current intensity so the shadow
+  // tint fades in/out as the user adjusts the light.
+  const base = mesh.userData.baseIntensity ?? 0;
+  mesh.material.uniforms.uIntensity.value = base * light.intensity;
 }
 
 export function updateShadowTints(meshes) {
   meshes.forEach(updateShadowTint);
 }
 
-export function buildPanel(panel) {
+export function buildPanel(panel, defaultDepth = DEFAULT_PANEL_DEPTH) {
   const group = new THREE.Group();
   group.name = panel.id;
 
-  const thickness = panel.thickness ?? GEOMETRY_THICKNESS;
-  const glassGeo = new THREE.BoxGeometry(panel.width, panel.height, thickness);
+  const depth = panel.depth ?? defaultDepth;
+  const glassGeo = new THREE.BoxGeometry(panel.width, panel.height, depth);
   const glassMat = createGlassMaterial(panel);
   const glassMesh = new THREE.Mesh(glassGeo, glassMat);
   glassMesh.position.set(panel.position.x, panel.position.y, panel.position.z);
@@ -188,11 +196,12 @@ export function buildInstallation(scene, panels, options = {}) {
   const {
     addLights = true,
     addFloor = true,
-    floorSize = 30,
+    floorSize = 60,
     floorColor = 0xffffff,
     coloredLights = DEFAULT_COLORED_LIGHTS,
     ambientIntensity = DEFAULT_AMBIENT_INTENSITY,
     shadowSaturation = DEFAULT_SHADOW_SATURATION,
+    panelDepth = DEFAULT_PANEL_DEPTH,
     shadowExtent = 14
   } = options;
 
@@ -228,7 +237,7 @@ export function buildInstallation(scene, panels, options = {}) {
 
   const shadowTints = [];
   const built = panels.map((panel) => {
-    const result = buildPanel(panel);
+    const result = buildPanel(panel, panelDepth);
     installation.add(result.group);
 
     result.tints = [];
@@ -247,9 +256,10 @@ export function buildInstallation(scene, panels, options = {}) {
   const cookieTargets = createCookieTargets(directionalLights.length);
   // One cookie scene shared by all lights — Three.js multiplies the sampled
   // map RGB into directLight.color itself, so we don't premultiply by lightColor.
-  const sharedCookie = createCookieScene(panels, shadowSaturation);
+  const sharedCookie = createCookieScene(panels, shadowSaturation, panelDepth);
   const cookieScenes = directionalLights.map(() => sharedCookie.scene);
   const cookieMaterials = sharedCookie.materials;
+  const cookieMeshes = sharedCookie.meshes;
   directionalLights.forEach((light, i) => {
     light.map = cookieTargets[i].texture;
   });
@@ -263,6 +273,7 @@ export function buildInstallation(scene, panels, options = {}) {
     shadowTints,
     cookieScenes,
     cookieTargets,
-    cookieMaterials
+    cookieMaterials,
+    cookieMeshes
   };
 }

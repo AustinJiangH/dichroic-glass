@@ -7,6 +7,7 @@ import {
   DEFAULT_GLASS,
   DEFAULT_AMBIENT_INTENSITY,
   DEFAULT_SHADOW_SATURATION,
+  DEFAULT_PANEL_DEPTH,
   updateSpotlightCookies,
   updateCookieSaturation,
   updateShadowTints
@@ -15,8 +16,10 @@ import { installationData } from './data.js';
 
 // Top-level demo config — tweak here to change behavior.
 const config = {
-  ambientIntensity: DEFAULT_AMBIENT_INTENSITY,
-  shadowSaturation: 2.0
+  ambientIntensity: 0.12,
+  shadowSaturation: 3.5,
+  shadowTintIntensity: 0.17,
+  panelDepth: DEFAULT_PANEL_DEPTH
 };
 
 const container = document.getElementById('app');
@@ -48,12 +51,13 @@ const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.target.set(0, 0.4, 0);
 
-const { lights, floor, panels, shadowTints, cookieScenes, cookieTargets, cookieMaterials } =
+const { lights, floor, panels, shadowTints, cookieScenes, cookieTargets, cookieMaterials, cookieMeshes } =
   buildInstallation(scene, installationData, {
     ambientIntensity: config.ambientIntensity,
-    shadowSaturation: config.shadowSaturation
+    shadowSaturation: config.shadowSaturation,
+    panelDepth: config.panelDepth
   });
-shadowTints.forEach((m) => { m.material.uniforms.uIntensity.value = 0.0; });
+shadowTints.forEach((m) => { m.userData.baseIntensity = config.shadowTintIntensity; });
 
 const gui = new GUI({ title: 'Dichroic Controls' });
 
@@ -103,9 +107,22 @@ glassFolder.add(glassParams, 'attenuationDistance', 0.05, 5, 0.05).onChange((v) 
 glassFolder.add(glassParams, 'clearcoat', 0, 1, 0.01).onChange((v) => applyToAll('clearcoat', v));
 glassFolder.add(glassParams, 'roughness', 0, 1, 0.01).onChange((v) => applyToAll('roughness', v));
 
+const geoParams = { panelDepth: config.panelDepth };
+function rebuildGeometry(mesh, newDepth) {
+  const { width, height } = mesh.geometry.parameters;
+  mesh.geometry.dispose();
+  mesh.geometry = new THREE.BoxGeometry(width, height, newDepth);
+}
+glassFolder.add(geoParams, 'panelDepth', 0.01, 0.5, 0.01)
+  .name('panel depth (geometry)')
+  .onChange((v) => {
+    panels.forEach(({ glassMesh }) => rebuildGeometry(glassMesh, v));
+    cookieMeshes.forEach((m) => rebuildGeometry(m, v));
+  });
+
 const tintFolder = gui.addFolder('Shadow Tints (per-panel color)');
 const tintParams = {
-  intensity: 0.0,
+  intensity: config.shadowTintIntensity,
   softness: 0.45,
   falloff: 2.0
 };
@@ -113,7 +130,8 @@ const setTintUniform = (name, value) => {
   shadowTints.forEach((m) => { m.material.uniforms[name].value = value; });
 };
 tintFolder.add(tintParams, 'intensity', 0, 2, 0.01)
-  .onChange((v) => setTintUniform('uIntensity', v));
+  .name('intensity (× light)')
+  .onChange((v) => { shadowTints.forEach((m) => { m.userData.baseIntensity = v; }); });
 tintFolder.add(tintParams, 'softness', 0, 1, 0.01)
   .onChange((v) => setTintUniform('uSoftness', v));
 tintFolder.add(tintParams, 'falloff', 0.2, 4, 0.05)

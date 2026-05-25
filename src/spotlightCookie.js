@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 
-const GEOMETRY_THICKNESS = 0.06;
+const DEFAULT_PANEL_DEPTH = 0.06;
 
 export const DEFAULT_SHADOW_SATURATION = 1.0;
 
@@ -14,7 +14,7 @@ function saturateFromWhite(color, saturation) {
   };
 }
 
-export function createCookieScene(panels, saturation = DEFAULT_SHADOW_SATURATION) {
+export function createCookieScene(panels, saturation = DEFAULT_SHADOW_SATURATION, defaultDepth = DEFAULT_PANEL_DEPTH) {
   // Three.js applies the cookie as: directLight.color *= spotColor.rgb (inside cone).
   // So the cookie holds panel transmission colors over a WHITE background:
   //   - panel pixel  → light.color *= panel.transmission   (filtered)
@@ -24,9 +24,10 @@ export function createCookieScene(panels, saturation = DEFAULT_SHADOW_SATURATION
   scene.background = new THREE.Color(0xffffff);
 
   const materials = [];
+  const meshes = [];
   panels.forEach((panel) => {
-    const thickness = panel.thickness ?? GEOMETRY_THICKNESS;
-    const geo = new THREE.BoxGeometry(panel.width, panel.height, thickness);
+    const depth = panel.depth ?? defaultDepth;
+    const geo = new THREE.BoxGeometry(panel.width, panel.height, depth);
 
     const baseTransmission = new THREE.Color(panel.colors.transmission);
     const sat = saturateFromWhite(baseTransmission, saturation);
@@ -40,6 +41,7 @@ export function createCookieScene(panels, saturation = DEFAULT_SHADOW_SATURATION
     materials.push(mat);
 
     const mesh = new THREE.Mesh(geo, mat);
+    mesh.userData = { panel };
     mesh.position.set(panel.position.x, panel.position.y, panel.position.z);
     if (panel.lookAtCenter) {
       mesh.lookAt(0, panel.position.y, 0);
@@ -47,10 +49,11 @@ export function createCookieScene(panels, saturation = DEFAULT_SHADOW_SATURATION
       mesh.rotation.set(panel.rotation.x, panel.rotation.y, panel.rotation.z);
     }
     scene.add(mesh);
+    meshes.push(mesh);
   });
 
   scene.updateMatrixWorld(true);
-  return { scene, materials };
+  return { scene, materials, meshes };
 }
 
 export function updateCookieSaturation(materials, saturation) {
