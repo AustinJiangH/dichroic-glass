@@ -60,6 +60,17 @@ const { lights, floor, panels, shadowTints, cookieScenes, cookieTargets, cookieM
   });
 shadowTints.forEach((m) => { m.userData.baseIntensity = config.shadowTintIntensity; });
 
+// Pre-render the cookie textures once so they're populated, then force the
+// renderer to compile all shaders with the full scene state (spotlights +
+// their .map properties + floor receiving them). Without this, Vite's
+// production bundle has a timing where the floor shader can compile before
+// the renderer registers the spotlight maps, dropping the cookie sampling
+// code entirely and leaving the floor unfiltered.
+if (cookieScenes && cookieTargets) {
+  updateSpotlightCookies(renderer, lights.directional, cookieScenes, cookieTargets);
+}
+renderer.compile(scene, camera);
+
 const gui = new GUI({ title: 'Dichroic Controls' });
 
 const sceneFolder = gui.addFolder('Scene');
