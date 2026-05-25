@@ -62,18 +62,6 @@ shadowTints.forEach((m) => { m.userData.baseIntensity = config.shadowTintIntensi
 
 const gui = new GUI({ title: 'Dichroic Controls' });
 
-const layoutProxy = { layout: activeLayout };
-gui.add(layoutProxy, 'layout', {
-  'Stone Henge': 'stonehenge',
-  'InterWeave':  'interweave',
-  'Turbo':       'turbo'
-})
-  .name('Layout')
-  .onChange((v) => {
-    localStorage.setItem('dichroic.layout', v);
-    location.reload();
-  });
-
 const sceneFolder = gui.addFolder('Scene');
 sceneFolder.add(renderer, 'toneMappingExposure', 0, 2, 0.01).name('exposure');
 sceneFolder.add(scene, 'environmentIntensity', 0, 2, 0.01).name('env IBL');
@@ -247,9 +235,123 @@ window.addEventListener('resize', () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
+// ---------- Floating bottom-left controls (layout + play) ----------
+const floatStyle = document.createElement('style');
+floatStyle.textContent = `
+  .dichroic-floating {
+    position: fixed; bottom: 20px; left: 20px;
+    display: flex; gap: 10px; align-items: center;
+    z-index: 1000;
+    font-family: -apple-system, system-ui, sans-serif;
+  }
+  .dichroic-floating select, .dichroic-floating button {
+    background: rgba(255, 255, 255, 0.85);
+    border: 1px solid rgba(0, 0, 0, 0.15);
+    border-radius: 8px;
+    padding: 9px 14px;
+    font-size: 13px;
+    cursor: pointer;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    color: #222;
+  }
+  .dichroic-floating select { font-weight: 500; }
+  .dichroic-floating button.playing {
+    background: rgba(40, 120, 220, 0.9);
+    color: white;
+    border-color: rgba(40, 120, 220, 1);
+  }
+`;
+document.head.appendChild(floatStyle);
+
+const floatContainer = document.createElement('div');
+floatContainer.className = 'dichroic-floating';
+
+const layoutSelect = document.createElement('select');
+[
+  ['stonehenge', 'Stone Henge'],
+  ['interweave', 'InterWeave'],
+  ['turbo',      'Turbo']
+].forEach(([value, label]) => {
+  const opt = document.createElement('option');
+  opt.value = value; opt.textContent = label;
+  if (value === activeLayout) opt.selected = true;
+  layoutSelect.appendChild(opt);
+});
+layoutSelect.addEventListener('change', () => {
+  localStorage.setItem('dichroic.layout', layoutSelect.value);
+  location.reload();
+});
+
+const playBtn = document.createElement('button');
+playBtn.textContent = '▶ Play';
+const playState = { playing: false };
+playBtn.addEventListener('click', () => {
+  playState.playing = !playState.playing;
+  playBtn.textContent = playState.playing ? '⏸ Pause' : '▶ Play';
+  playBtn.classList.toggle('playing', playState.playing);
+  controls.enabled = !playState.playing;
+  if (playState.playing) {
+    playState.startTime = clock.getElapsedTime();
+    playState.startAzimuth = Math.atan2(camera.position.z, camera.position.x);
+    playState.startRadius = Math.hypot(camera.position.x, camera.position.z, camera.position.y);
+  }
+});
+
+floatContainer.appendChild(layoutSelect);
+floatContainer.appendChild(playBtn);
+document.body.appendChild(floatContainer);
+
+// ---------- Animation state ----------
+const clock = new THREE.Clock();
+const lightBaselines = lights.directional.map((l) => ({
+  pos: l.position.clone(),
+  intensity: l.intensity,
+  phase: Math.random() * Math.PI * 2
+}));
+const cameraRadius = camera.position.length();
+
 function animate() {
   requestAnimationFrame(animate);
-  controls.update();
+
+  if (playState.playing) {
+    const t = clock.getElapsedTime() - playState.startTime;
+
+    // Camera: rotate azimuth + smoothly climb elevation 30° → 90°.
+    // Smoothstep over 25s, then hold at the top.
+    const azimuth = playState.startAzimuth + t * 0.25;
+    const rampT = Math.min(1, t / 25);
+    const elevNorm = rampT * rampT * (3 - 2 * rampT);   // smoothstep
+    const elev = THREE.MathUtils.lerp(
+      Math.PI / 6,   // 30° above horizon — low side angle
+      Math.PI / 2,   // 90° — straight overhead, top-down
+      elevNorm
+    );
+    const r = playState.startRadius;
+    camera.position.set(
+      r * Math.cos(elev) * Math.cos(azimuth),
+      r * Math.sin(elev),
+      r * Math.cos(elev) * Math.sin(azimuth)
+    );
+    camera.lookAt(controls.target);
+
+    // Lights: wobble position + intensity within range
+    lights.directional.forEach((light, i) => {
+      const base = lightBaselines[i];
+      const wob1 = Math.sin(t * 0.35 + base.phase) * 1.5;
+      const wob2 = Math.cos(t * 0.52 + base.phase * 1.3) * 1.5;
+      const wob3 = Math.sin(t * 0.41 + base.phase * 0.7) * 0.6;
+      light.position.set(
+        base.pos.x + wob1,
+        Math.max(0.5, base.pos.y + wob3),
+        base.pos.z + wob2
+      );
+      light.intensity = base.intensity * (0.65 + 0.4 * Math.sin(t * 0.6 + base.phase));
+    });
+  } else {
+    controls.update();
+  }
 
   if (cookieScenes && cookieTargets) {
     updateSpotlightCookies(renderer, lights.directional, cookieScenes, cookieTargets);

@@ -1,7 +1,8 @@
 import { defineConfig } from 'vite';
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   root: '.',
+  base: command === 'build' ? '/dichroic-glass/' : '/',
   server: {
     port: 5173,
     open: true
@@ -9,4 +10,4 @@ export default defineConfig({
   build: {
     target: 'es2020'
   }
-});
+}));

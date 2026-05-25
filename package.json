@@ -3,6 +3,12 @@
   "version": "0.1.0",
   "description": "Vanilla Three.js dichroic glass installation simulator inspired by Chris Wood's wall pieces.",
   "type": "module",
+  "license": "MIT",
+  "homepage": "https://austinjianggh.github.io/dichroic-glass/",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AustinJiangH/dichroic-glass.git"
+  },
   "main": "src/index.js",
   "exports": {
     ".": "./src/index.js",
