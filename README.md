@@ -2,7 +2,7 @@
 
 Real-time dichroic glass installation simulator inspired by [Chris Wood's wall pieces](https://www.thisiscolossal.com/2014/09/geometric-dichroic-glass-installations-by-chris-wood/) — vanilla Three.js, no React.
 
-**[Live demo →](https://austinjianggh.github.io/dichroic-glass/)**
+**[Live demo →](https://austinjiangh.github.io/dichroic-glass/)**
 
 Each panel is rendered as physical glass (`MeshPhysicalMaterial` with transmission, dispersion, iridescence). The colored shadows on the floor come from per-light projective cookie textures — every frame, each spotlight renders the panels' transmission colors from its own POV into a render target, and Three.js multiplies the light's contribution by that cookie:
 
