@@ -12,12 +12,12 @@ import {
   updateCookieSaturation,
   updateShadowTints
 } from '../src/index.js';
-import { installationData } from './data.js';
+import { installationData, installationLights, activeLayout } from './data.js';
 
 // Top-level demo config — tweak here to change behavior.
 const config = {
   ambientIntensity: 0.12,
-  shadowSaturation: 3.5,
+  shadowSaturation: 2.5,
   shadowTintIntensity: 0.17,
   panelDepth: DEFAULT_PANEL_DEPTH
 };
@@ -55,11 +55,24 @@ const { lights, floor, panels, shadowTints, cookieScenes, cookieTargets, cookieM
   buildInstallation(scene, installationData, {
     ambientIntensity: config.ambientIntensity,
     shadowSaturation: config.shadowSaturation,
-    panelDepth: config.panelDepth
+    panelDepth: config.panelDepth,
+    coloredLights: installationLights
   });
 shadowTints.forEach((m) => { m.userData.baseIntensity = config.shadowTintIntensity; });
 
 const gui = new GUI({ title: 'Dichroic Controls' });
+
+const layoutProxy = { layout: activeLayout };
+gui.add(layoutProxy, 'layout', {
+  'Stone Henge': 'stonehenge',
+  'InterWeave':  'interweave',
+  'Turbo':       'turbo'
+})
+  .name('Layout')
+  .onChange((v) => {
+    localStorage.setItem('dichroic.layout', v);
+    location.reload();
+  });
 
 const sceneFolder = gui.addFolder('Scene');
 sceneFolder.add(renderer, 'toneMappingExposure', 0, 2, 0.01).name('exposure');
@@ -106,6 +119,7 @@ glassFolder.add(glassParams, 'iridescenceIOR', 1, 2.5, 0.01).onChange((v) => app
 glassFolder.add(glassParams, 'attenuationDistance', 0.05, 5, 0.05).onChange((v) => applyToAll('attenuationDistance', v));
 glassFolder.add(glassParams, 'clearcoat', 0, 1, 0.01).onChange((v) => applyToAll('clearcoat', v));
 glassFolder.add(glassParams, 'roughness', 0, 1, 0.01).onChange((v) => applyToAll('roughness', v));
+glassFolder.add(glassParams, 'opacity', 0, 1, 0.01).onChange((v) => applyToAll('opacity', v));
 
 const geoParams = { panelDepth: config.panelDepth };
 function rebuildGeometry(mesh, newDepth) {

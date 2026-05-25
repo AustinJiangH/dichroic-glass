@@ -46,7 +46,12 @@ export function createCookieScene(panels, saturation = DEFAULT_SHADOW_SATURATION
     if (panel.lookAtCenter) {
       mesh.lookAt(0, panel.position.y, 0);
     } else if (panel.rotation) {
-      mesh.rotation.set(panel.rotation.x, panel.rotation.y, panel.rotation.z);
+      mesh.rotation.set(
+        panel.rotation.x,
+        panel.rotation.y,
+        panel.rotation.z,
+        panel.rotation.order || 'XYZ'
+      );
     }
     scene.add(mesh);
     meshes.push(mesh);

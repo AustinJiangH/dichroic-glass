@@ -21,7 +21,7 @@ const DEFAULT_COLORED_LIGHTS = [
 export const DEFAULT_PANEL_DEPTH = 0.02;
 
 export const DEFAULT_GLASS = {
-  transmission: 0.87,
+  transmission: 0.75,
   thickness: 0.08,
   ior: 1.34,
   dispersion: 2.05,
@@ -29,7 +29,8 @@ export const DEFAULT_GLASS = {
   iridescenceIOR: 1.76,
   attenuationDistance: 3.2,
   clearcoat: 0.27,
-  roughness: 0.05
+  roughness: 0.05,
+  opacity: 1.0
 };
 
 export function createGlassMaterial(panel) {
@@ -50,7 +51,7 @@ export function createGlassMaterial(panel) {
     clearcoatRoughness: 0.08,
     side: THREE.DoubleSide,
     transparent: true,
-    opacity: 0.65,
+    opacity: DEFAULT_GLASS.opacity,
     depthWrite: false
   });
 }
@@ -155,7 +156,12 @@ export function buildPanel(panel, defaultDepth = DEFAULT_PANEL_DEPTH) {
   if (panel.lookAtCenter) {
     glassMesh.lookAt(0, panel.position.y, 0);
   } else if (panel.rotation) {
-    glassMesh.rotation.set(panel.rotation.x, panel.rotation.y, panel.rotation.z);
+    glassMesh.rotation.set(
+      panel.rotation.x,
+      panel.rotation.y,
+      panel.rotation.z,
+      panel.rotation.order || 'XYZ'
+    );
   }
   glassMesh.name = `${panel.id}_glass`;
   // SpotLight cookies handle the floor's colored shadow projection.
