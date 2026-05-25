@@ -14,13 +14,13 @@ renderer.setClearColor(0xe8e6df);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 2.0;
+renderer.toneMappingExposure = 1.16;
 container.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
 const pmrem = new THREE.PMREMGenerator(renderer);
 scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-scene.environmentIntensity = 0.45;
+scene.environmentIntensity = 0.63;
 
 const camera = new THREE.PerspectiveCamera(
   45,
@@ -34,7 +34,7 @@ const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.target.set(0, 0.4, 0);
 
-const { lights, floor, panels } = buildInstallation(scene, installationData);
+const { lights, floor, panels, shadowTints } = buildInstallation(scene, installationData);
 
 const gui = new GUI({ title: 'Dichroic Controls' });
 
@@ -80,6 +80,22 @@ glassFolder.add(glassParams, 'iridescenceIOR', 1, 2.5, 0.01).onChange((v) => app
 glassFolder.add(glassParams, 'attenuationDistance', 0.05, 5, 0.05).onChange((v) => applyToAll('attenuationDistance', v));
 glassFolder.add(glassParams, 'clearcoat', 0, 1, 0.01).onChange((v) => applyToAll('clearcoat', v));
 glassFolder.add(glassParams, 'roughness', 0, 1, 0.01).onChange((v) => applyToAll('roughness', v));
+
+const tintFolder = gui.addFolder('Shadow Tints (per-panel color)');
+const tintParams = {
+  intensity: 0.55,
+  softness: 0.45,
+  falloff: 2.0
+};
+const setTintUniform = (name, value) => {
+  shadowTints.forEach((m) => { m.material.uniforms[name].value = value; });
+};
+tintFolder.add(tintParams, 'intensity', 0, 2, 0.01)
+  .onChange((v) => setTintUniform('uIntensity', v));
+tintFolder.add(tintParams, 'softness', 0, 1, 0.01)
+  .onChange((v) => setTintUniform('uSoftness', v));
+tintFolder.add(tintParams, 'falloff', 0.2, 4, 0.05)
+  .onChange((v) => setTintUniform('uFalloff', v));
 
 const shadowFolder = gui.addFolder('Shadows');
 const shadowParams = {
