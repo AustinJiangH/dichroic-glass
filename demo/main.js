@@ -71,6 +71,24 @@ if (cookieScenes && cookieTargets) {
 }
 renderer.compile(scene, camera);
 
+// DEBUG: log spotlight + cookie state so we can verify on the deployed site
+console.log('[dichroic-debug] lights:', lights.directional.map((l) => ({
+  type: l.constructor.name,
+  isSpotLight: l.isSpotLight,
+  hasMap: !!l.map,
+  mapUuid: l.map && l.map.uuid,
+  mapColorSpace: l.map && l.map.colorSpace,
+  intensity: l.intensity,
+  inScene: !!l.parent
+})));
+console.log('[dichroic-debug] cookieTargets:', cookieTargets && cookieTargets.length, 'cookieScenes:', cookieScenes && cookieScenes.length);
+console.log('[dichroic-debug] floor material type:', floor && floor.material && floor.material.constructor.name);
+console.log('[dichroic-debug] renderer caps:', {
+  isWebGL2: renderer.capabilities.isWebGL2,
+  maxTextures: renderer.capabilities.maxTextures,
+  outputColorSpace: renderer.outputColorSpace
+});
+
 const gui = new GUI({ title: 'Dichroic Controls' });
 
 const sceneFolder = gui.addFolder('Scene');
