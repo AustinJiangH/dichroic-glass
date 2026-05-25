@@ -1,24 +1,35 @@
 import * as THREE from 'three';
 import { shadowTintVertexShader, shadowTintFragmentShader } from './shaders.js';
+import {
+  createCookieScene,
+  createCookieTargets,
+  DEFAULT_SHADOW_SATURATION
+} from './spotlightCookie.js';
 
+export const DEFAULT_AMBIENT_INTENSITY = 0.2;
+
+// Each light's color must have all three channels non-zero, otherwise the
+// per-panel transmission multiply can only attenuate one channel (no hue
+// shift). Saturated-but-not-pure tints give each light room to be filtered
+// into a different hue by every panel.
 const DEFAULT_COLORED_LIGHTS = [
-  { position: [  3.8, 5.4,   5.9 ], color: 0xff0000, intensity: 4.65, penumbra: 8.5, bias: -0.0001, normalBias: 0.02 },
-  { position: [ -6.5, 7.4,  11.26], color: 0x00ff00, intensity: 5.5,  penumbra: 8.0, bias: -0.0001, normalBias: 0.02 },
-  { position: [ -6.5, 8.8, -11.7 ], color: 0x0000ff, intensity: 4.95, penumbra: 8.0, bias: -0.0001, normalBias: 0.02 }
+  { position: [  3.8, 5.4,   5.9 ], color: 0xffbfbf, intensity: 1.5, penumbra: 8.5, bias: -0.0001, normalBias: 0.02 },
+  { position: [ -6.5, 7.4,  11.26], color: 0xbfffbf, intensity: 1.5, penumbra: 8.0, bias: -0.0001, normalBias: 0.02 },
+  { position: [ -6.5, 8.8, -11.7 ], color: 0xbfbfff, intensity: 1.5, penumbra: 8.0, bias: -0.0001, normalBias: 0.02 }
 ];
 
 const GEOMETRY_THICKNESS = 0.06;
 
 export const DEFAULT_GLASS = {
-  transmission: 0.95,
-  thickness: 0.2,
+  transmission: 1.0,
+  thickness: 0.08,
   ior: 1.39,
   dispersion: 1.17,
-  iridescence: 0.61,
+  iridescence: 0.4,
   iridescenceIOR: 1.49,
-  attenuationDistance: 1.1,
-  clearcoat: 0.67,
-  roughness: 0.61
+  attenuationDistance: 3.0,
+  clearcoat: 0.5,
+  roughness: 0.2
 };
 
 export function createGlassMaterial(panel) {
@@ -109,29 +120,32 @@ export function buildPanel(panel) {
     glassMesh.rotation.set(panel.rotation.x, panel.rotation.y, panel.rotation.z);
   }
   glassMesh.name = `${panel.id}_glass`;
-  glassMesh.castShadow = true;
-  glassMesh.receiveShadow = true;
-  glassMesh.customDepthMaterial = new THREE.MeshDepthMaterial({
-    depthPacking: THREE.RGBADepthPacking,
-    side: THREE.DoubleSide
-  });
+  // SpotLight cookies handle the floor's colored shadow projection.
+  // Real shadow casting would zero out the light wherever a panel sits, masking
+  // the cookie's per-panel transmission tint — so we disable it here.
+  glassMesh.castShadow = false;
+  glassMesh.receiveShadow = false;
 
   group.add(glassMesh);
   return { group, glassMesh };
 }
 
-function addColoredLight(parent, cfg, shadowExtent) {
-  const light = new THREE.DirectionalLight(cfg.color, cfg.intensity);
+function addColoredLight(parent, cfg /* shadowExtent unused for SpotLight */) {
+  const light = new THREE.SpotLight(
+    cfg.color,
+    cfg.intensity,
+    0,
+    cfg.angle ?? Math.PI / 3.2,
+    cfg.coneSoftness ?? 0.4,
+    0
+  );
   light.position.set(cfg.position[0], cfg.position[1], cfg.position[2]);
   light.target.position.set(0, 0, 0);
   light.castShadow = true;
   light.shadow.mapSize.set(2048, 2048);
-  light.shadow.camera.left = -shadowExtent;
-  light.shadow.camera.right = shadowExtent;
-  light.shadow.camera.top = shadowExtent;
-  light.shadow.camera.bottom = -shadowExtent;
   light.shadow.camera.near = 0.5;
   light.shadow.camera.far = 40;
+  light.shadow.focus = 1;
   light.shadow.radius = cfg.penumbra ?? 8;
   light.shadow.bias = cfg.bias ?? -0.0005;
   light.shadow.normalBias = cfg.normalBias ?? 0.04;
@@ -147,7 +161,8 @@ export function buildInstallation(scene, panels, options = {}) {
     floorSize = 30,
     floorColor = 0xffffff,
     coloredLights = DEFAULT_COLORED_LIGHTS,
-    ambientIntensity = 0.88,
+    ambientIntensity = DEFAULT_AMBIENT_INTENSITY,
+    shadowSaturation = DEFAULT_SHADOW_SATURATION,
     shadowExtent = 14
   } = options;
 
@@ -200,12 +215,25 @@ export function buildInstallation(scene, panels, options = {}) {
     return result;
   });
 
+  const cookieTargets = createCookieTargets(directionalLights.length);
+  // One cookie scene shared by all lights — Three.js multiplies the sampled
+  // map RGB into directLight.color itself, so we don't premultiply by lightColor.
+  const sharedCookie = createCookieScene(panels, shadowSaturation);
+  const cookieScenes = directionalLights.map(() => sharedCookie.scene);
+  const cookieMaterials = sharedCookie.materials;
+  directionalLights.forEach((light, i) => {
+    light.map = cookieTargets[i].texture;
+  });
+
   scene.add(installation);
   return {
     installation,
     panels: built,
     lights: { directional: directionalLights, ambient: ambientLight },
     floor: floorMesh,
-    shadowTints
+    shadowTints,
+    cookieScenes,
+    cookieTargets,
+    cookieMaterials
   };
 }

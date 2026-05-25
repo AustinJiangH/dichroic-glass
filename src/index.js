@@ -3,7 +3,8 @@ export {
   buildPanel,
   createGlassMaterial,
   createPanelShadowTint,
-  DEFAULT_GLASS
+  DEFAULT_GLASS,
+  DEFAULT_AMBIENT_INTENSITY
 } from './buildInstallation.js';
 
 export {
@@ -12,3 +13,11 @@ export {
   shadowTintVertexShader,
   shadowTintFragmentShader
 } from './shaders.js';
+
+export {
+  createCookieScene,
+  createCookieTargets,
+  updateSpotlightCookies,
+  updateCookieSaturation,
+  DEFAULT_SHADOW_SATURATION
+} from './spotlightCookie.js';

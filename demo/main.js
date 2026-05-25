@@ -2,8 +2,21 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import GUI from 'lil-gui';
-import { buildInstallation, DEFAULT_GLASS } from '../src/index.js';
+import {
+  buildInstallation,
+  DEFAULT_GLASS,
+  DEFAULT_AMBIENT_INTENSITY,
+  DEFAULT_SHADOW_SATURATION,
+  updateSpotlightCookies,
+  updateCookieSaturation
+} from '../src/index.js';
 import { installationData } from './data.js';
+
+// Top-level demo config — tweak here to change behavior.
+const config = {
+  ambientIntensity: DEFAULT_AMBIENT_INTENSITY,
+  shadowSaturation: 2.0
+};
 
 const container = document.getElementById('app');
 
@@ -34,7 +47,12 @@ const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.target.set(0, 0.4, 0);
 
-const { lights, floor, panels, shadowTints } = buildInstallation(scene, installationData);
+const { lights, floor, panels, shadowTints, cookieScenes, cookieTargets, cookieMaterials } =
+  buildInstallation(scene, installationData, {
+    ambientIntensity: config.ambientIntensity,
+    shadowSaturation: config.shadowSaturation
+  });
+shadowTints.forEach((m) => { m.material.uniforms.uIntensity.value = 0.0; });
 
 const gui = new GUI({ title: 'Dichroic Controls' });
 
@@ -44,6 +62,9 @@ sceneFolder.add(scene, 'environmentIntensity', 0, 2, 0.01).name('env IBL');
 if (lights.ambient) {
   sceneFolder.add(lights.ambient, 'intensity', 0, 2, 0.01).name('ambient');
 }
+sceneFolder.add(config, 'shadowSaturation', 0, 5, 0.05)
+  .name('shadow saturation')
+  .onChange((v) => updateCookieSaturation(cookieMaterials, v));
 if (floor) {
   sceneFolder.add(floor.material, 'envMapIntensity', 0, 2, 0.01).name('floor IBL');
   sceneFolder.addColor({ color: floor.material.color.getHex() }, 'color')
@@ -83,7 +104,7 @@ glassFolder.add(glassParams, 'roughness', 0, 1, 0.01).onChange((v) => applyToAll
 
 const tintFolder = gui.addFolder('Shadow Tints (per-panel color)');
 const tintParams = {
-  intensity: 0.55,
+  intensity: 0.0,
   softness: 0.45,
   falloff: 2.0
 };
@@ -196,6 +217,11 @@ window.addEventListener('resize', () => {
 function animate() {
   requestAnimationFrame(animate);
   controls.update();
+
+  if (cookieScenes && cookieTargets) {
+    updateSpotlightCookies(renderer, lights.directional, cookieScenes, cookieTargets);
+  }
+
   renderer.render(scene, camera);
 }
 
