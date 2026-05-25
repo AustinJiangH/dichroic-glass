@@ -81,14 +81,23 @@ console.log(`[dichroic-debug] scene.environmentIntensity=${scene.environmentInte
 
 // After first render, inspect what got compiled
 setTimeout(() => {
-  const program = renderer.info.programs?.find(p => p.cacheKey && p.cacheKey.includes('STANDARD'));
-  console.log(`[dichroic-debug] floor program found:`, !!program);
-  if (program && program.cacheKey) {
-    const hasSpotLightMap = program.cacheKey.includes('numSpotLightMaps:3') || program.cacheKey.includes('3,3,3');
-    console.log(`[dichroic-debug] floor cacheKey snippet:`, program.cacheKey.slice(0, 200));
+  const physical = renderer.info.programs?.find(p => p.cacheKey && p.cacheKey.includes('physical'));
+  if (physical) {
+    console.log(`[dichroic-debug] floor FULL cacheKey:`, physical.cacheKey);
+    console.log(`[dichroic-debug] floor program uniforms keys:`, Object.keys(physical.uniforms || {}).filter(k => k.toLowerCase().includes('spot')));
+    console.log(`[dichroic-debug] cookie texture content check:`);
+    cookieTargets.forEach((tgt, i) => {
+      const buf = new Uint8Array(4);
+      try {
+        renderer.readRenderTargetPixels(tgt, 1024, 1024, 1, 1, buf);
+        console.log(`  cookie ${i} center pixel:`, [...buf]);
+      } catch (e) {
+        console.log(`  cookie ${i} read failed:`, e.message);
+      }
+    });
   }
   console.log(`[dichroic-debug] total programs:`, renderer.info.programs?.length);
-}, 500);
+}, 1000);
 
 const gui = new GUI({ title: 'Dichroic Controls' });
 
