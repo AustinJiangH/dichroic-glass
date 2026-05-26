@@ -15,6 +15,8 @@
   <img src="docs/shot3.png" height="220" />
 </p>
 
+The Dichroic Glass Interactive Playground is an innovative, real-time digital simulator that brings the complex optical properties of physical dichroic glass to the web browser. Built entirely on vanilla Three.js without heavy external frameworks, this creative coding project functions as both an interactive art installation and a real-time shader experiment. Users can manipulate lighting parameters, change object positions, and instantly observe how color-shifting materials reflect and transmit light across a 3D canvas.
+
 Inspired by Chris Wood's quiet, gallery-scale installations of dichroic glass, this is a Three.js sandbox where light passes through panes of colored glass and paints the world behind them. Pick a layout. Drag the camera. Tweak the lights. Hit Play and let the camera drift overhead while the lights breathe — the floor turns into a slow, shifting carpet of hue.
 
 ## What to play with
