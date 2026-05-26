@@ -5,6 +5,11 @@
 > [Open the demo →](https://austinjiangh.github.io/dichroic-glass/)
 
 <p align="center">
+  <video src="docs/recording1.mp4" height="320" autoplay loop muted playsinline></video>
+  <video src="docs/recording2.mp4" height="320" autoplay loop muted playsinline></video>
+</p>
+
+<p align="center">
   <img src="docs/shot1.png" height="220" />
   <img src="docs/shot2.png" height="220" />
   <img src="docs/shot3.png" height="220" />
